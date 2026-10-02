@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>A flower for you</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #1d1426;
+    --night-2: #2b1c38;
+    --rose: #e8779a;
+    --blush: #f6b8c8;
+    --gold: #f2c46d;
+    --leaf: #6fa37a;
+    --ink: #fbeef2;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: radial-gradient(ellipse at 50% 30%, var(--night-2), var(--night) 70%);
+    color: var(--ink);
+    font-family: "Caveat", "Segoe Print", "Bradley Hand", cursive;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    text-align: center;
+    overflow-x: hidden;
+  }
+  .hint, .message { margin: 0; }
+  .hint { font-size: 1.5rem; color: var(--blush); min-height: 2rem; transition: opacity .4s; }
+  .stage { width: min(88vw, 380px); }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+  .petal-inner {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    transform: scale(.28);
+    transition: transform 1.1s cubic-bezier(.2,.9,.3,1.2), opacity .9s ease;
+    cursor: default;
+  }
+  .bloomed .petal-inner { transform: scale(1); cursor: pointer; transition-delay: var(--d); }
+  .bloomed .petal-inner:hover, .petal-inner:focus-visible { transform: scale(1.05); transition-delay: 0s; }
+  .petal-inner:focus-visible { outline: none; }
+  .petal-inner:focus-visible path { stroke: var(--gold); stroke-width: 3; }
+  .petal-inner.gone {
+    transform: translateY(-150px) rotate(25deg) scale(.9) !important;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 1.4s ease-in, opacity 1.2s ease-in;
+  }
+  .bud { transition: opacity .6s; }
+  .center { transition: filter 1.2s, r 1.2s; }
+  .glow .center { filter: drop-shadow(0 0 18px var(--gold)); }
+  .sway { transform-origin: 200px 560px; animation: sway 6s ease-in-out infinite alternate; }
+  @keyframes sway { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
+
+  .message {
+    font-size: clamp(1.7rem, 6vw, 2.3rem);
+    font-weight: 700;
+    line-height: 1.2;
+    max-width: 22ch;
+    min-height: 5.2rem;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity .6s, transform .6s;
+  }
+  .message.show { opacity: 1; transform: none; }
+  .message.final { color: var(--gold); }
+  button.again {
+    font: inherit; font-size: 1.3rem; color: var(--blush);
+    background: none; border: 1.5px solid var(--blush); border-radius: 999px;
+    padding: 4px 18px; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .6s;
+  }
+  button.again.show { opacity: 1; pointer-events: auto; }
+  button.again:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sway { animation: none; }
+    .petal-inner, .petal-inner.gone, .message { transition-duration: .01s; transition-delay: 0s; }
+  }
+</style>
+</head>
+<body>
+
+<p class="hint" id="hint"></p>
+
+<div class="stage" id="stage">
+  <svg viewBox="0 0 400 580" role="img" aria-label="A pink flower with many petals">
+    <g class="sway">
+      <path d="M200 560 C190 460 212 380 200 250" fill="none" stroke="var(--leaf)" stroke-width="8" stroke-linecap="round"/>
+      <path d="M198 470 C150 470 118 440 108 396 C158 392 192 424 198 470Z" fill="var(--leaf)"/>
+      <path d="M204 410 C250 412 282 384 292 342 C244 338 210 366 204 410Z" fill="var(--leaf)" opacity=".9"/>
+      <g id="flower" transform="translate(200 215)"></g>
+    </g>
+  </svg>
+</div>
+
+<p class="message" id="message" aria-live="polite"></p>
+<button class="again" id="again" type="button">Open it again</button>
+
+<script>
+  // ---- Edit these ----
+  var NAME = "";  // her name, e.g. "Steffi". Leave empty to skip.
+  var MESSAGES = [
+    "I'm sorry I hurt you.",
+    "I'm sorry I assumed.",
+    "I'm sorry, may mga pagkukulang ako ngayon.",
+    "I'm sorry I didn't think this through.",
+    "I'm sorry I didn't listen first.",
+    "I'm sorry for the words that made it worse.",
+    "I'm sorry I made you feel unheard.",
+    "I'm sorry I made you worry.",
+    "I'm sorry. Gusto kong ayusin 'to, kasama ka.",
+    "I'm sorry, and thank you for talking it out with me."
+  ];
+  var FINAL = "I love you.";
+  // --------------------
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var flower = document.getElementById("flower");
+  var stage = document.getElementById("stage");
+  var hint = document.getElementById("hint");
+  var msg = document.getElementById("message");
+  var again = document.getElementById("again");
+  var N = MESSAGES.length;
+  var petals = [], remaining, bloomed;
+
+  function el(name, attrs) {
+    var e = document.createElementNS(SVGNS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function say(text, final) {
+    msg.classList.remove("show");
+    setTimeout(function () {
+      msg.textContent = text;
+      msg.classList.toggle("final", !!final);
+      msg.classList.add("show");
+    }, 250);
+  }
+
+  function build() {
+    flower.innerHTML = "";
+    petals = [];
+    for (var i = 0; i < N; i++) {
+      var angle = (360 / N) * i;
+      var outer = el("g", { transform: "rotate(" + angle + ")" });
+      var inner = el("g", { "class": "petal-inner", tabindex: "-1", role: "button", "aria-label": "Petal " + (i + 1) + " of " + N });
+      inner.style.setProperty("--d", (i * 0.09) + "s");
+      var shape = el("path", {
+        d: "M0 0 C-38 -40 -34 -112 0 -138 C34 -112 38 -40 0 0Z",
+        fill: i % 2 ? "var(--blush)" : "var(--rose)"
+      });
+      var vein = el("path", { d: "M0 -12 L0 -100", stroke: "rgba(255,255,255,.35)", "stroke-width": "2", fill: "none", "stroke-linecap": "round" });
+      inner.appendChild(shape);
+      inner.appendChild(vein);
+      outer.appendChild(inner);
+      flower.appendChild(outer);
+      petals.push(inner);
+      (function (idx, node) {
+        node.addEventListener("click", function () { pick(idx, node); });
+        node.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(idx, node); }
+        });
+      })(i, inner);
+    }
+    flower.appendChild(el("circle", { "class": "center", r: "26", fill: "var(--gold)" }));
+    flower.appendChild(el("circle", { r: "10", cx: "-6", cy: "-6", fill: "rgba(255,255,255,.35)" }));
+  }
+
+  function reset() {
+    build();
+    stage.classList.remove("bloomed", "glow");
+    remaining = N;
+    bloomed = false;
+    stage.setAttribute("tabindex", "0");
+    stage.setAttribute("role", "button");
+    stage.setAttribute("aria-label", "Open the flower");
+    msg.classList.remove("show");
+    again.classList.remove("show");
+    hint.style.opacity = 1;
+    hint.textContent = NAME ? "I made this for you, " + NAME + ". Tap the bud." : "I made this for you. Tap the bud.";
+  }
+
+  function bloom() {
+    if (bloomed) return;
+    bloomed = true;
+    stage.classList.add("bloomed");
+    stage.removeAttribute("role");
+    stage.removeAttribute("tabindex");
+    stage.removeAttribute("aria-label");
+    petals.forEach(function (p) { p.setAttribute("tabindex", "0"); });
+    hint.textContent = "Tap a petal.";
+  }
+
+  function pick(i, node) {
+    if (!bloomed || node.classList.contains("gone")) return;
+    node.classList.add("gone");
+    node.removeAttribute("tabindex");
+    remaining--;
+    say(MESSAGES[i], false);
+    if (remaining === 0) {
+      hint.style.opacity = 0;
+      setTimeout(function () {
+        stage.classList.add("glow");
+        say(FINAL, true);
+        again.classList.add("show");
+      }, 3200);
+    } else {
+      hint.textContent = remaining + (remaining === 1 ? " petal left" : " petals left");
+    }
+  }
+
+  stage.addEventListener("click", function (e) {
+    if (!bloomed && !e.target.closest(".petal-inner")) bloom();
+    else if (!bloomed) bloom();
+  });
+  stage.addEventListener("keydown", function (e) {
+    if ((e.key === "Enter" || e.key === " ") && !bloomed) { e.preventDefault(); bloom(); }
+  });
+  again.addEventListener("click", reset);
+
+  reset();
+</script>
+</body>
+</html>
